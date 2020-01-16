@@ -27,9 +27,64 @@ variables:
 stages:
 - stage: Build
   displayName: Build stage
+  variables:
+    GOVERSION: '1.13.5' # only used for tests, Dockerfile controls build
   jobs:  
+  - job: Test
+    displayName: Test
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: GoTool@0
+      inputs:
+        version: $(GOVERSION)
+      displayName: 'Install and select Go version $(GOVERSION)'
+    - script: |
+        go mod download
+      displayName: 'download go module dependencies'
+    - script: |
+        set -o pipefail
+        set -e
+        go test ./... -v -race -coverprofile=coverage.txt -covermode atomic | tee report.txt
+      displayName: 'run test (coverage and -race enabled)'
+      continueOnError: true
+    - script: |
+        set -o pipefail
+        set -e
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+        $HOME/go/bin/golangci-lint run
+      displayName: 'Lint code'
+      continueOnError: true
+    - script: |
+        set -o pipefail
+        set -e
+        go get -u github.com/jstemmer/go-junit-report
+        go get -u github.com/axw/gocov/gocov
+        go get -u github.com/AlekSi/gocov-xml
+
+        $HOME/go/bin/go-junit-report < report.txt > report.xml
+        $HOME/go/bin/gocov convert coverage.txt | $HOME/go/bin/gocov-xml > coverage.xml
+      displayName: 'Convert coverage report'
+    - task: PublishTestResults@2
+      condition: always()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '*report*.xml'
+        searchFolder: '$(Build.SourcesDirectory)'
+      displayName: 'Publish test results'
+    - task: PublishCodeCoverageResults@1
+      condition: always()
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Build.SourcesDirectory)/coverage.xml'
+      displayName: 'Publish code coverage results'
+    - script: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.22.2
+        $HOME/go/bin/golangci-lint run
+      displayName: 'Lint code'
+      continueOnError: true
   - job: Build
-    displayName: Build
+    displayName: Build Dockerfile
     pool:
       vmImage: $(vmImageName)
     steps:

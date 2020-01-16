@@ -31,7 +31,7 @@ func (s reprice) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// TODO access control
 
 	var body struct {
-		ProductId string      `json:"productId`
+		ProductId string      `json:"productId"`
 		Price     json.Number `json:"price"`
 	}
 
@@ -90,13 +90,15 @@ func (s product) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// TODO read from model, logging
-	http.Error(w, "productId not found", http.StatusNotFound)
-	return
+	if true {
+		http.Error(w, "productId not found", http.StatusNotFound)
+		return
+	}
 
 	// json content type
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(body)
+	_ = json.NewEncoder(w).Encode(body) // TODO log error if any, only likely to be IO errors
 }
 
 // serialized in JSON as fractional unix epoch time
