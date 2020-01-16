@@ -1,0 +1,16 @@
+apiVersion : apps/v1beta1
+kind: Deployment
+metadata:
+  name: repricer 
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: repricer 
+    spec:
+      containers:
+        - name: repricer 
+          image: repricer.azurecr.io/repricer
+          ports:
+          - containerPort: 8080
