@@ -14,3 +14,12 @@ spec:
           image: repricer.azurecr.io/repricer
           ports:
           - containerPort: 8080
+          - containerPort: 9102
+          livenessProbe:
+            httpGet:
+              path: /healthz/alive
+              port: 9102
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 9102
