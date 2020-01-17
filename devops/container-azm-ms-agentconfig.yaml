@@ -1,0 +1,25 @@
+# based on
+# https://github.com/microsoft/OMS-docker/blob/ad5b4d66edbc57deac0520b5410bcf02c41750ec/Kubernetes/container-azm-ms-agentconfig.yaml
+kind: ConfigMap
+apiVersion: v1
+data:
+  schema-version: v1
+  config-version: ver1
+  log-data-collection-settings: |-
+    [log_collection_settings]
+       [log_collection_settings.stdout]
+          enabled = true
+          exclude_namespaces = ["kube-system"]
+
+       [log_collection_settings.stderr]
+          enabled = true
+          exclude_namespaces = ["kube-system"]
+  prometheus-data-collection-settings: |-
+    [prometheus_data_collection_settings.cluster]
+        interval = "1m"
+        monitor_kubernetes_pods = true
+    [prometheus_data_collection_settings.node]
+        interval = "1m"
+metadata:
+  name: container-azm-ms-agentconfig
+  namespace: kube-system

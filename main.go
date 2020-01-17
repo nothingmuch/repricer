@@ -1,9 +1,14 @@
 package main
 
 import (
-	"github.com/nothingmuch/repricer/handlers"
 	"log"
 	"net/http"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	metrics "github.com/slok/go-http-metrics/metrics/prometheus"
+	"github.com/slok/go-http-metrics/middleware"
+
+	"github.com/nothingmuch/repricer/handlers"
 )
 
 func main() {
@@ -17,9 +22,13 @@ func main() {
 		alwaysOK := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(http.StatusOK) })
 		backplaneMux.Handle("/healthz/alive", alwaysOK)
 		backplaneMux.Handle("/healthz/ready", alwaysOK)
+		backplaneMux.Handle("/metrics", promhttp.Handler())
 		_ = http.ListenAndServe(":9102", backplaneMux)
 	}()
 
-	log.Fatal(http.ListenAndServe(":8080", apiMux))
+	wrapped := middleware.New(middleware.Config{
+		Recorder: metrics.NewRecorder(metrics.Config{}),
+	}).Handler("", apiMux)
 
+	log.Fatal(http.ListenAndServe(":8080", wrapped))
 }

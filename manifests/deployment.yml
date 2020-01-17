@@ -7,14 +7,18 @@ spec:
   template:
     metadata:
       labels:
-        app: repricer 
+        app: repricer
+      annotations:
+        prometheus.io/scrape: "true"
     spec:
       containers:
         - name: repricer 
           image: repricer.azurecr.io/repricer
           ports:
-          - containerPort: 8080
-          - containerPort: 9102
+          - name: http
+            containerPort: 8080
+          - name: monitoring
+            containerPort: 9102
           livenessProbe:
             httpGet:
               path: /healthz/alive
