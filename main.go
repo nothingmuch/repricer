@@ -1,15 +1,20 @@
 package main
 
 import (
-	"github.com/nothingmuch/repricer/handlers"
+	"encoding/json"
 	"log"
 	"net/http"
+	"time"
+
+	"github.com/nothingmuch/repricer/handlers"
 )
 
+type noopModel struct {}
+func (noopModel) UpdatePrice(string, json.Number) error { return nil }
+func (noopModel) LastPrice(string) (json.Number, time.Time, error) { return json.Number(""), time.Time{}, nil }
+
 func main() {
-	apiMux := http.NewServeMux()
-	apiMux.Handle("/api/reprice", handlers.Reprice)
-	apiMux.Handle("/api/product/", handlers.Product)
+	apiMux := handlers.API(noopModel{})
 
 	go func() {
 		// just a fake set of healthchecks since the app currently entirely statless
