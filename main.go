@@ -1,15 +1,15 @@
 package main
 
 import (
-	"github.com/nothingmuch/repricer/handlers"
 	"log"
 	"net/http"
+
+	"github.com/nothingmuch/repricer/handlers"
+	"github.com/nothingmuch/repricer/storage"
 )
 
 func main() {
-	apiMux := http.NewServeMux()
-	apiMux.Handle("/api/reprice", handlers.Reprice)
-	apiMux.Handle("/api/product/", handlers.Product)
+	apiMux := handlers.API(storage.New())
 
 	go func() {
 		// just a fake set of healthchecks since the app currently entirely statless
