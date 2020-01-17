@@ -9,7 +9,12 @@ import (
 )
 
 func main() {
-	apiMux := handlers.API(storage.New())
+	store, err := storage.New("/tmp/repricer/results")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	apiMux := handlers.API(store)
 
 	go func() {
 		// just a fake set of healthchecks since the app currently entirely statless
