@@ -20,6 +20,21 @@ func open(path string) (dir, error) {
 
 type dir string
 
+func (d dir) openFile(filename string) (r io.ReadCloser, err error) {
+	r, err = os.Open(filepath.Join(string(d), filename))
+	return
+}
+
+func (d dir) listFiles() ([]string, error) {
+	f, err := os.Open(string(d))
+	if err != nil {
+		return nil, err
+	}
+
+	// note that there are no ordering guarantees in POSIX
+	return f.Readdirnames(-1)
+}
+
 func (d dir) atomicWriteFile(filename string, writeData func(io.Writer) error) (err error) {
 	// ioutil.TempFile replaces the final * with randomness, add a fixed
 	// suffix so we can filter out during readdir scanning (not actually
