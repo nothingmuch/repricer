@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	FlushInterval     = time.Second
+	MaxRecordsPerFile = 10
+)
+
 type errConst string
 
 func (e errConst) Error() string { return string(e) }
@@ -55,13 +60,17 @@ func New(path string) (model, error) {
 }
 
 type store struct {
-	priceByProductId sync.Map // price & time keyed by productId
+	sync.Mutex
 
-	sync.Mutex        // mutex for mutable fields
-	length     int    // total number of prices (not files)
-	files      []file // sorted index of all files
+	length int    // total number of prices (not files) not including buffer contents
+	files  []file // sorted index of all files
+
+	buffer []record    // pending records to be saved
+	timer  *time.Timer // for flushing buffer
 
 	dir
+
+	priceByProductId sync.Map // price & time keyed by productId
 }
 
 // in memory entry, but json serialzation applies to persisted files
@@ -93,43 +102,76 @@ func (s *store) UpdatePrice(productId string, price json.Number) error {
 	// and also because non-UTC timestamps (even if only in a single time
 	// zone) add a lot of edge/corner cases or not even be totally ordered
 
-	// FIXME timestamp assignments should serialize write ordering, needs to
-	// happen synchronously to ensure that price timestamps are
-	// monotonically increasing
-	now := time.Now()
+	// this mutex protects the mutable fields in store, and also ensures
+	// that the timestamps of sequential entries are monotonically
+	// increasing which is why it's taken before time.Now()
+	s.Lock()
+	defer s.Unlock()
 
-	ent := entry{price, now}
-	s.storePriceEntry(productId, ent)
+	ent := entry{price, time.Now()}
+
+	s.storePriceEntryNoMutex(productId, ent)
 	s.priceByProductId.Store(productId, &ent)
 
 	return nil
 }
 
-func (s *store) storePriceEntry(productId string, ent entry) error {
+func (s *store) storePriceEntryNoMutex(productId string, ent entry) {
+	rec := record{productId, ent}
+
+	if s.buffer == nil {
+		s.buffer = make([]record, 1, MaxRecordsPerFile)
+		s.buffer[0] = rec
+		s.timer = time.AfterFunc(FlushInterval, s.flushBuffer)
+	} else {
+		s.buffer = append(s.buffer, rec)
+		if len(s.buffer) == MaxRecordsPerFile {
+			s.flushBufferNoMutex() // mutexes in go aren't recursive
+		}
+	}
+}
+
+func (s *store) flushBuffer() {
 	s.Lock()
 	defer s.Unlock()
 
+	// if the buffer is already empty it was preemptively flushed after the
+	// timer triggered, and there's no need to do anything
+	if len(s.buffer) == 0 {
+		return
+	}
+
+	s.flushBufferNoMutex()
+}
+
+func (s *store) flushBufferNoMutex() {
+	s.timer.Stop() // no need to check if it already fired, since we've got the mutex
+
+	buffer := s.buffer
+
 	newFile := file{
-		time:       ent.Time,
+		time:       buffer[0].Time,
 		seq:        len(s.files),
 		firstEntry: s.length,
-		length:     1,
+		length:     len(buffer),
 	}
 
-	err := s.dir.atomicWriteFile(newFile.name(), func(w io.Writer) error {
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "\t")                             // provided example in spec was tab indented
-		return enc.Encode([]record{record{productId, ent}}) // FIXME write grouped entries, not singletons
-	})
-
-	if err != nil {
-		return err
-	}
-
+	s.buffer = nil
+	s.timer = nil
+	s.length += len(buffer)
 	s.files = append(s.files, newFile)
-	s.length++
 
-	return nil
+	go func() {
+		err := s.dir.atomicWriteFile(newFile.name(), func(w io.Writer) error {
+			enc := json.NewEncoder(w)
+			enc.SetIndent("", "\t") // provided example in spec was tab indented
+			return enc.Encode(buffer)
+		})
+
+		if err != nil {
+			return // TODO log error
+		}
+	}()
 }
 
 func (s *store) loadFiles(filenames []string) error {
