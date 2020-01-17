@@ -68,7 +68,7 @@ func (s product) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	e := json.NewEncoder(w)
 	e.SetIndent("", "\t") // specification example has literal tabs in it, but this is also silly
-	_ = e.Encode(body) // TODO log error if any, only likely to be IO errors
+	_ = e.Encode(body)    // TODO log error if any, only likely to be IO errors
 }
 
 // serialized in JSON as fractional unix epoch time

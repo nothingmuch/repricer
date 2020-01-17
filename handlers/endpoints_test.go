@@ -50,7 +50,7 @@ func TestStatefulness(t *testing.T) {
 	// all returned times must be later than this
 	t0 := float64(time.Now().UnixNano()) * (float64(time.Nanosecond) / float64(time.Second))
 
-	post := func(productId string, price json.Number) (int) {
+	post := func(productId string, price json.Number) int {
 		by, err := json.Marshal(struct {
 			ProductId string      `json:"productId"`
 			Price     json.Number `json:"price"`
@@ -83,8 +83,8 @@ func TestStatefulness(t *testing.T) {
 		return resp.StatusCode
 	}
 
-	get := func (productId string) (int, json.Number, json.Number) {
-		req := httptest.NewRequest("GET", "http://example.com/api/product/" + productId + "/price", nil)
+	get := func(productId string) (int, json.Number, json.Number) {
+		req := httptest.NewRequest("GET", "http://example.com/api/product/"+productId+"/price", nil)
 
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
@@ -103,7 +103,7 @@ func TestStatefulness(t *testing.T) {
 			}
 
 			if body.ProductId != productId {
-				t.Error("productId in result ("+body.ProductId+") should match queried path ("+productId+")")
+				t.Error("productId in result (" + body.ProductId + ") should match queried path (" + productId + ")")
 			}
 
 			if body.Price == json.Number("") || body.Price == json.Number("0") {
@@ -140,7 +140,7 @@ func TestStatefulness(t *testing.T) {
 		}
 	}
 
-	expectPrice := func (productId string, expectedPrice json.Number) {
+	expectPrice := func(productId string, expectedPrice json.Number) {
 		code, price, t1 := get(productId)
 
 		if code != http.StatusOK {
@@ -170,7 +170,8 @@ func TestStatefulness(t *testing.T) {
 	expectPrice("bar", json.Number("21.00"))
 }
 
-type noopModel struct {}
+type noopModel struct{}
+
 func (noopModel) UpdatePrice(string, json.Number) error { return nil }
 
 // simple in memory model to check state updates
@@ -184,12 +185,12 @@ type simpleMap struct {
 }
 
 func (m simpleMap) UpdatePrice(productId string, price json.Number) error {
-	m.data[productId] = entry{ price, time.Now() }
+	m.data[productId] = entry{price, time.Now()}
 	m.Log("->state", productId, m.data[productId])
 	return nil
 }
 func (m simpleMap) LastPrice(productId string) (json.Number, time.Time, error) {
-	ent :=  m.data[productId]
+	ent := m.data[productId]
 	m.Log("<-state", productId, ent)
 	return ent.Price, ent.Time, nil
 }
