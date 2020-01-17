@@ -66,7 +66,9 @@ func (s product) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// json content type
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(body) // TODO log error if any, only likely to be IO errors
+	e := json.NewEncoder(w)
+	e.SetIndent("", "\t") // specification example has literal tabs in it, but this is also silly
+	_ = e.Encode(body) // TODO log error if any, only likely to be IO errors
 }
 
 // serialized in JSON as fractional unix epoch time
