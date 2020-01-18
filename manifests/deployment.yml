@@ -4,11 +4,23 @@ metadata:
   name: repricer 
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: repricer 
     spec:
+      initContainers:
+        - name: chown
+          image: busybox
+          command:
+          - chown
+          - "65534:65534" # as specified in the Dockerfile
+          - "/tmp/repricer"
+          volumeMounts:
+          - name: data
+            mountPath: "/tmp/repricer"
       containers:
         - name: repricer 
           image: repricer.azurecr.io/repricer
@@ -23,3 +35,10 @@ spec:
             httpGet:
               path: /healthz/ready
               port: 9102
+          volumeMounts:
+            - mountPath: "/tmp/repricer"
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: repricer-data-uid-jfc-please-please-please-work
