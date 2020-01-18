@@ -81,8 +81,24 @@ type entry struct {
 
 // data at rest
 type record struct {
-	ProductId string `json:"productId"`
+	ProductId     string         `json:"productId"`
+	PreviousPrice nullableNumber `json:"previousPrice"`
 	entry
+}
+
+// represent uninitialized previous prices as null values instead of 0
+type nullableNumber struct{ json.Number }
+
+func (n nullableNumber) MarshalJSON() ([]byte, error) {
+	if n.Number == "" {
+		return []byte(`null`), nil
+	} else {
+		return json.Marshal(n.Number)
+	}
+}
+
+func (n *nullableNumber) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &n.Number)
 }
 
 func (s *store) LastPrice(productId string) (json.Number, time.Time, error) {
@@ -110,6 +126,8 @@ func (s *store) UpdatePrice(productId string, price json.Number) error {
 
 	ent := entry{price, time.Now()}
 
+	// note that storePriceEntryNoMutex must be called before updating
+	// priceByProductId in order to save the previous price
 	s.storePriceEntryNoMutex(productId, ent)
 	s.priceByProductId.Store(productId, &ent)
 
@@ -117,7 +135,8 @@ func (s *store) UpdatePrice(productId string, price json.Number) error {
 }
 
 func (s *store) storePriceEntryNoMutex(productId string, ent entry) {
-	rec := record{productId, ent}
+	previousPrice, _, _ := s.LastPrice(productId)
+	rec := record{productId, nullableNumber{previousPrice}, ent}
 
 	if s.buffer == nil {
 		s.buffer = make([]record, 1, MaxRecordsPerFile)
