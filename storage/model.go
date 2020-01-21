@@ -25,6 +25,7 @@ type priceUpdater interface {
 }
 
 type priceReader interface {
+	HasPrice(string) bool
 	LastPrice(string) (json.Number, time.Time, error) // TODO(bikeshedding): (Entry, error) ?  (*Entry, error) to eliminate HasPrice?
 }
 
