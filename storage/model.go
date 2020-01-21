@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+const (
+	NullPrice = json.Number("")
+)
+
 type entry struct {
 	Price json.Number
 	time.Time
