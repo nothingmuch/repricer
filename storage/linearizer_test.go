@@ -174,7 +174,7 @@ func TestLinearizerConcurrentRead(t *testing.T) {
 		}
 
 		t1 = ent.Time
-	case <-time.After(time.Second):
+	case <-time.After(2 * FlushInterval):
 		t.Fatal("timed out waiting for last price response")
 	}
 
@@ -195,7 +195,7 @@ func TestLinearizerConcurrentRead(t *testing.T) {
 		if rec.PreviousPrice != json.Number("4.20") {
 			t.Error("record should have previousPrice from snapshot")
 		}
-	case <-time.After(time.Second):
+	case <-time.After(2 * FlushInterval):
 		t.Fatal("timed out waiting for write")
 	}
 
@@ -215,7 +215,7 @@ func TestLinearizerConcurrentRead(t *testing.T) {
 
 	select {
 	case <-c:
-	case <-time.After(time.Second):
+	case <-time.After(2 * FlushInterval):
 		t.Fatal("timed out waiting for in memory read")
 	}
 }
