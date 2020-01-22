@@ -171,12 +171,29 @@ func (linearizedState) linearizeOperations(
 			// pre-loaded into the sync map for use by subsequent
 			// `price` and `reprice` requests
 
-			if _, exists := prevPriceListener[req.productId]; exists {
+			if inFlight, exists := prevPriceListener[req.productId]; exists { // if not nil?
 				// this shouldn't happen because the LastPrice()
 				// operation inside the loop should have succeded
 				// there should never be 2 previous price
 				// requests per process, let alone concurrently
-				panic("bug: no snapshot read should have been in progress")
+
+				// panic("bug: no snapshot read should have been in progress")
+
+				// FIXME the following race condition is still possible:
+				//  newPriceReq
+				//  | lastPricereq
+				//  | |
+				//  | prevPriceReq
+				//  prevPriceReq
+
+				// as an ugly workaround, make sure the subsequent
+				// requestor gets a copy of the value
+				go func() {
+					req.result <- <-inFlight
+				}()
+
+				// suppress normal execution path when this race occurrs
+				continue
 			}
 
 			prevPriceListener[req.productId] = req.result
