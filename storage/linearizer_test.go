@@ -96,7 +96,10 @@ func TestLinearizerPriorData(t *testing.T) {
 	mem := simpleMap{" mem", t, make(map[string]entry)}
 	snap := simpleMap{"snap", t, make(map[string]entry)}
 
-	t0 := time.Now()
+	// truncate monotonic time component, which is not serialized in JSON
+	// and provide explicit timezone to match JSON deserialization loc
+	t0 := time.Now().UTC().Truncate(0)
+
 	_ = snap.SetPrice("foo", json.Number("4.20"), t0)
 
 	model := linearizeUpdates(mem, snap, writes)
