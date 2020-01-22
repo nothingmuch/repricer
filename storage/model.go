@@ -10,13 +10,13 @@ const (
 )
 
 type entry struct {
-	Price json.Number
-	time.Time
+	Price json.Number `json:"newPrice"`
+	Time  time.Time   `json:"timestamp"` // TODO rename Timestamp
 }
 
 type record struct {
-	ProductId     string
-	PreviousPrice json.Number
+	ProductId     string      `json:"productId"`
+	PreviousPrice json.Number `json:"previousPrice,omitempty"`
 	entry
 }
 
