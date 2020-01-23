@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/json"
-	"math"
 	"path/filepath"
 	"sync"
 	"time"
@@ -20,10 +19,12 @@ const (
 // init with a file seq #s
 // implement recordWriter interface
 type batchWriter struct {
-	fs writeFS
+	fs
 
 	fileSeq  int64
 	entrySeq int64
+
+	productEntrySeq map[string]int64
 
 	*batch
 }
@@ -45,7 +46,40 @@ func (w *batchWriter) writeRecord(r *record) (err error) {
 		}
 	}()
 
-	return w.batch.writeRecord(r)
+	// FIXME
+	// entrySeq needs to be the sequence number for that specific product id
+	// this duplicates work performed by the fs based priceReader interface
+	// this lives here because batchWriter sees records to be written in
+	// order, and therefore can maintain a consistent view of these sequence
+	// numbers
+	if w.productEntrySeq == nil {
+		// create lazily to avoid polluting other code with this
+		// workaround during construction time
+		w.productEntrySeq = make(map[string]int64)
+	}
+
+	productEntrySeq, exists := w.productEntrySeq[r.ProductId]
+	if !exists {
+		files, err := w.fs.Sub(filepath.Join(ProductSubdirectory, ProductIdHash(r.ProductId))).Files()
+		if err != nil {
+			return err
+		}
+
+		if len(files) > 0 {
+			// calculate next entryseq based on previous file entries
+			var f filename
+			err = f.FromString(files[len(files)-1])
+			if err != nil {
+				return err // TODO wrap
+			}
+			productEntrySeq = f.entrySeq + f.nRecords - 1
+		}
+	}
+
+	productEntrySeq++
+	w.productEntrySeq[r.ProductId] = productEntrySeq
+
+	return w.batch.writeRecord(r, productEntrySeq)
 }
 
 func (w *batchWriter) startBatchIfNeeded(now time.Time) (err error) {
@@ -100,7 +134,7 @@ type batch struct {
 	filename
 	end time.Time
 
-	productIds map[string]int
+	productFields map[string]*perProductInfo
 
 	file   appendFile
 	synced chan struct{} // closes when synced
@@ -110,14 +144,14 @@ type batch struct {
 	sync.Mutex // FIXME needed because of outstanding data race
 }
 
-func (b *batch) initialize() error {
-	b.productIds = make(map[string]int, 10)
-	b.synced = make(chan struct{})
+type perProductInfo struct {
+	nRecords int64
+	entrySeq int64
+}
 
-	// ensure buffer is always flushed after it can no longer be filled
-	time.AfterFunc(FlushInterval, func() {
-		b.flush()
-	})
+func (b *batch) initialize() error {
+	b.productFields = make(map[string]*perProductInfo, MaxRecordsPerFile)
+	b.synced = make(chan struct{})
 
 	// FIXME redo with ndjson for robustness
 	_, err := b.file.Write([]byte("[\n\t")) // start a JSON array as per spec
@@ -125,10 +159,15 @@ func (b *batch) initialize() error {
 		return err
 	}
 
+	// ensure buffer is always flushed after it can no longer be filled
+	time.AfterFunc(FlushInterval, func() {
+		b.flush()
+	})
+
 	return nil
 }
 
-func (b *batch) writeRecord(r *record) (err error) {
+func (b *batch) writeRecord(r *record, hackyProductEntrySeq int64) (err error) {
 	if r.entry.Time.Before(b.end) {
 		panic("time went backwards")
 	}
@@ -158,10 +197,17 @@ func (b *batch) writeRecord(r *record) (err error) {
 	old := b.filename
 	b.nRecords++
 	b.end = r.entry.Time
-	if b.productIds[r.ProductId] == 0 {
+	if perProduct, exists := b.productFields[r.ProductId]; !exists {
 		b.nProductIds++
+		b.productFields[r.ProductId] = &perProductInfo{
+			nRecords: 1,
+			entrySeq: hackyProductEntrySeq, // FIXME see above
+		}
+	} else {
+		// only assign nRecords, since we want to know the first
+		// entrySeq in the file
+		perProduct.nRecords++
 	}
-	b.productIds[r.ProductId]++
 
 	// keep update nRecords and nProducts fields up to date in the filename
 	err = b.fs.Rename(
@@ -189,10 +235,10 @@ func (b *batch) flush() {
 			finalName := filepath.Join(ResultsSubdirectory, b.filename.String())
 
 			// link to product index directories
-			for productId, count := range b.productIds {
+			for productId, v := range b.productFields {
 				productFilename := b.filename
-				productFilename.nRecords = int64(count)
-				productFilename.entrySeq = math.MaxInt64 // FIXME entrySeq needs to be seq *per product ID*
+				productFilename.nRecords = v.nRecords
+				productFilename.entrySeq = v.entrySeq
 
 				_ = b.fs.Link(finalName, filepath.Join(ProductSubdirectory, ProductIdHash(productId), productFilename.String())) // TODO error
 			}
