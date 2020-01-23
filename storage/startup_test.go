@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/nothingmuch/repricer/errors"
 )
 
 func init() {
@@ -72,7 +74,7 @@ func (s *modelStack) UpdatePrice(productId string, price json.Number) (err error
 	}
 
 	for _, model := range s.models {
-		collectErrors(&err, model.UpdatePrice(productId, price))
+		errors.Collect(&err, model.UpdatePrice(productId, price))
 	}
 	return
 }

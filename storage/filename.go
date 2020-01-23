@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/nothingmuch/repricer/errors"
 )
 
 type filename struct {
@@ -52,14 +54,14 @@ func (f *filename) FromString(s string) (err error) {
 	}
 	r := bytes.NewReader(b)
 
-	collectErrors(&err, binary.Read(r, binary.BigEndian, &f.fileSeq))
-	collectErrors(&err, binary.Read(r, binary.BigEndian, &f.entrySeq))
-	collectErrors(&err, binary.Read(r, binary.BigEndian, &f.nRecords))
-	collectErrors(&err, binary.Read(r, binary.BigEndian, &f.nProductIds))
+	errors.Collect(&err, binary.Read(r, binary.BigEndian, &f.fileSeq))
+	errors.Collect(&err, binary.Read(r, binary.BigEndian, &f.entrySeq))
+	errors.Collect(&err, binary.Read(r, binary.BigEndian, &f.nRecords))
+	errors.Collect(&err, binary.Read(r, binary.BigEndian, &f.nProductIds))
 
 	var unixSec, nanoSec int64
-	collectErrors(&err, binary.Read(r, binary.BigEndian, &unixSec))
-	collectErrors(&err, binary.Read(r, binary.BigEndian, &nanoSec))
+	errors.Collect(&err, binary.Read(r, binary.BigEndian, &unixSec))
+	errors.Collect(&err, binary.Read(r, binary.BigEndian, &nanoSec))
 	f.start = time.Unix(unixSec, nanoSec)
 
 	return f.check()
@@ -78,16 +80,16 @@ func (f filename) check() (err error) {
 	// TODO version bit?
 
 	if f.fileSeq < 1 {
-		collectErrors(&err, fieldError{"fileSeq", f.fileSeq})
+		errors.Collect(&err, fieldError{"fileSeq", f.fileSeq})
 	}
 	if f.entrySeq < 1 {
-		collectErrors(&err, fieldError{"entrySeq", f.entrySeq})
+		errors.Collect(&err, fieldError{"entrySeq", f.entrySeq})
 	}
 	if f.nRecords < 1 {
-		collectErrors(&err, fieldError{"nRecords", f.nRecords})
+		errors.Collect(&err, fieldError{"nRecords", f.nRecords})
 	}
 	if f.nProductIds < 1 {
-		collectErrors(&err, fieldError{"nProductIds", f.nProductIds})
+		errors.Collect(&err, fieldError{"nProductIds", f.nProductIds})
 	}
 
 	return
