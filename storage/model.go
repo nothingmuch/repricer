@@ -2,12 +2,22 @@ package storage
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"time"
 )
 
 const (
 	NullPrice = json.Number("")
 )
+
+func New(path string) priceModel { // TODO return error, plumb errors & context
+	err := os.MkdirAll(filepath.Join(path, ResultsSubdirectory), 0777)
+	if err != nil {
+		panic(err)
+	}
+	return newFromFS(osFS(path))
+}
 
 type entry struct {
 	Price json.Number `json:"newPrice"`

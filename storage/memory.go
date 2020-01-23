@@ -6,22 +6,25 @@ import (
 	"time"
 )
 
-func New() interface {
-	UpdatePrice(string, json.Number) error
-	LastPrice(string) (json.Number, time.Time, error)
-} {
-	return &store{}
-}
+type memStore struct{ m sync.Map }
 
-type store struct{ sync.Map }
-
-func (s *store) UpdatePrice(productId string, price json.Number) error {
-	s.Map.Store(productId, &entry{price, time.Now()})
+func (s *memStore) SetPrice(productId string, price json.Number, t time.Time) error {
+	s.m.Store(productId, &entry{price, t})
 	return nil
 }
 
-func (s *store) LastPrice(productId string) (json.Number, time.Time, error) {
-	if ent, exists := s.Map.Load(productId); exists {
+func (s *memStore) SetPriceIfMissing(productId string, price json.Number, t time.Time) error {
+	s.m.LoadOrStore(productId, &entry{price, t})
+	return nil
+}
+
+func (s *memStore) HasPrice(productId string) bool {
+	_, exists := s.m.Load(productId)
+	return exists
+}
+
+func (s *memStore) LastPrice(productId string) (json.Number, time.Time, error) {
+	if ent, exists := s.m.Load(productId); exists {
 		ent := ent.(*entry)
 		return ent.Price, ent.Time, nil
 	} else {

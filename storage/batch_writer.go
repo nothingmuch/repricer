@@ -8,11 +8,12 @@ import (
 )
 
 const (
-	FlushInterval       = time.Second
 	MaxRecordsPerFile   = 10
 	ResultsSubdirectory = "results"
 	ProductSubdirectory = "results_by_product"
 )
+
+var FlushInterval = time.Second // FIXME make into a parameter. turned var from const to make tests more responsive
 
 // batchWriter is a recordwriter that writes records in batches.
 // it is not safe for concurrent use

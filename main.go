@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	apiMux := handlers.API(storage.New())
+	apiMux := handlers.API(storage.New("."))
 
 	go func() {
 		// just a fake set of healthchecks since the app currently entirely statless
