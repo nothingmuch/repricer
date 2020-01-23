@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/nothingmuch/repricer/errors"
@@ -73,32 +74,103 @@ func (s priceLoader) PriceLog(
 		return
 	}
 
-	// TODO
-	// - search for beginning of interval, find latest file that is a lower
-	//   bound
-	// - sort.search for offset entrySeq
-	//   - time-GLB entrySeq + n is base, where n = nRecords, add this to offset... open file to find out n? or can it be handled after?
+	// set up a reasonable upper bound if not set
+	if endTime.IsZero() {
+		endTime = time.Now()
+	}
 
-	// - sort.Search to skip ahead to entrySeq
-	// - find 1st entry's seq# to re-base offsets
-	// - search for entrySeq interval, slice filenames
+	// parse filenames to search over metadata fields
+	parsed := make([]filename, len(files))
+	for i, filename := range files {
+		err = parsed[i].FromString(filename)
+		if err != nil {
+			return
+		}
+	}
 
-	skip := offset
-	for _, file := range files {
-		records, loadErr := s.loadFile(d, file)
+	skip := offset           // number of entries to skip before emitting any records
+	baseEntrySeq := int64(1) // entrySeq of the 1st entry in the time interval, where offset starts counting
+
+	// search for beginning of interval, find file that is a greatest
+	// lower bound on timestamp, and slice filename list to suffix
+	if skipFiles := sort.Search(len(parsed), func(i int) bool {
+		return !startTime.After(parsed[i].start)
+	}); 0 < skipFiles {
+		// start time older than all data
+		if skipFiles == len(files) {
+			return
+		}
+
+		// time-GLB.entrySeq + n == t0-entrySeq < time-GLB.entrySeq + nReceords
+		// open file to get t0-entrySeq (seq of first record in time interval)
+		//
+		// target entrySeq = time-GLB.entrySeq + n + offset
+		records, _ := s.loadFile(d, files[skipFiles]) // TODO error
+		var offsetInFile int
+		for i, rec := range records {
+			if rec.entry.Time.After(startTime) {
+				offsetInFile = i
+				break
+			}
+		}
+
+		// calculate a new base offset
+		baseEntrySeq = parsed[skipFiles].entrySeq + int64(offsetInFile)
+
+		// slice off uninteresting prefix
+		parsed = parsed[skipFiles:]
+		files = files[skipFiles:]
+	}
+
+	// search for file where desired offset resides
+	if skipFiles := sort.Search(len(parsed), func(i int) (r bool) {
+		return parsed[i].entrySeq+parsed[i].nRecords >= baseEntrySeq+offset
+	}); 0 < skipFiles {
+		// offset is past end of results
+		if skipFiles == len(files) {
+			return
+		}
+
+		// we only need to skip the entries that remain inside the file
+		skip = baseEntrySeq + offset - parsed[skipFiles].entrySeq
+
+		// and again slice off the uninteresting prefix
+		parsed = parsed[skipFiles:]
+		files = files[skipFiles:]
+	}
+
+	for i, filename := range files {
+		// since time values are totally ordered, once we see a file
+		// with a timestamp outside of the interval, we can terminate
+		if parsed[i].start.After(endTime) {
+			return
+		}
+
+		records, loadErr := s.loadFile(d, filename)
 		if loadErr != nil {
+			// TODO handle parse errors (partly written data)
 			errors.Collect(&err, loadErr)
 			continue
 		}
 
 		for _, rec := range records {
-			// FIXME seek
+			// omit leading entries that may be in the files of interest
+			// and don't count them towards offset
+			if rec.entry.Time.Before(startTime) {
+				continue
+			}
+
+			// since time values are totally ordered, once we see an
+			// entry past the end we're also done
+			if rec.entry.Time.After(endTime) {
+				return
+			}
+
 			if skip > 0 {
 				skip--
 				continue
 			}
 
-			// FIXME check that end seq isn't exceeded, otherwise break
 			ret = append(ret, struct {
 				ProductId string
 				Price     json.Number
