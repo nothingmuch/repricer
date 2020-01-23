@@ -11,7 +11,7 @@ const (
 	NullPrice = json.Number("")
 )
 
-func New(path string) priceModel { // TODO return error, plumb errors & context
+func New(path string) extendedPriceModel { // TODO return error, plumb errors & context
 	err := os.MkdirAll(filepath.Join(path, ResultsSubdirectory), 0777)
 	if err != nil {
 		panic(err)

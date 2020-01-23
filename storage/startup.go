@@ -1,7 +1,6 @@
 package storage
 
-func newFromFS(fs fs) priceModel { // TODO return error
-
+func newFromFS(fs fs) extendedPriceModel { // TODO return error
 	memstore := &memStore{}
 	batchWriter := &batchWriter{fs: fs}
 	var previousPrices priceReader = memstore // TODO null store?
@@ -34,5 +33,17 @@ func newFromFS(fs fs) priceModel { // TODO return error
 	}
 
 	// TODO plumb errors, context
-	return linearizeUpdates(memstore, previousPrices, batchWriter)
+	return extendModel{
+		priceModel:        linearizeUpdates(memstore, previousPrices, batchWriter),
+		priceLogRetriever: priceLoader{fs},
+	}
 }
+
+// FIXME refactor, used to decorate priceModel with additional log fetching API,
+// still not sure if all model implementations should support that
+type extendModel struct {
+	priceModel
+	priceLogRetriever
+}
+
+var _ extendedPriceModel = extendModel{}
