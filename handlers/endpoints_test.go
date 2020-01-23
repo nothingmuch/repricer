@@ -194,3 +194,11 @@ func (m simpleMap) LastPrice(productId string) (json.Number, time.Time, error) {
 	m.Log("<-state", productId, ent)
 	return ent.Price, ent.Time, nil
 }
+
+func (m simpleMap) PriceLog(_ string, _, _ time.Time, _ int64, _ int) ([]struct {
+	ProductId string
+	Price     json.Number
+	Timestamp time.Time
+}, error) {
+	return nil, nil // FIXME implement or remove as part of priceModel bikeshedding refactor
+}

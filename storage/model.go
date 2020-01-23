@@ -39,6 +39,22 @@ type priceReader interface {
 	LastPrice(string) (json.Number, time.Time, error) // TODO(bikeshedding): (Entry, error) ?  (*Entry, error) to eliminate HasPrice?
 }
 
+type priceLogRetriever interface {
+	PriceLog(
+		productId string,
+		startTime, endTime time.Time,
+		offset int64, limit int,
+	) (
+		[]struct {
+			// TODO make Entry/Record types public?
+			ProductId string
+			Price     json.Number
+			Timestamp time.Time
+		},
+		error,
+	)
+}
+
 type priceSetter interface {
 	SetPrice(productId string, price json.Number, timestamp time.Time) error
 }
@@ -57,8 +73,13 @@ type priceState interface {
 	priceSetterAtomic
 }
 
-// price resource model, consumed by REST api
 type priceModel interface {
 	priceReader
 	priceUpdater
+}
+
+// price resource model, consumed by REST api
+type extendedPriceModel interface {
+	priceModel
+	priceLogRetriever
 }
