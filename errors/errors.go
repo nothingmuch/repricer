@@ -4,6 +4,11 @@ import (
 	"fmt"
 )
 
+type Temporary string
+
+func (s Temporary) Error() string { return string(s) }
+func (Temporary) Temporary() bool { return true }
+
 type Errors []error
 
 func (err Errors) Error() string { return fmt.Sprintf("%+v", []error(err)) } // TODO improve formatting?
