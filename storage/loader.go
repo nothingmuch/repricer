@@ -149,7 +149,17 @@ func (s priceLoader) PriceLog(
 		records, loadErr := s.loadFile(d, filename)
 		if loadErr != nil {
 			// TODO handle parse errors (partly written data)
-			errors.Collect(&err, loadErr)
+			// since the last written file is potentially not yet
+			// valid JSON we can try to re-parse it appending ']',
+			// but a better way is to just change the on disk format
+			// to NDJSON, especially if combined with length
+			// constraints that ensure that records are smaller than
+			// the filesystem block size so as to prevent partial
+			// records from being written.
+			// for now just ignore errors if this is the last file.
+			if i != len(files)-1 {
+				errors.Collect(&err, loadErr)
+			}
 			continue
 		}
 
