@@ -2,34 +2,63 @@ package storage
 
 import (
 	"encoding/json"
-	"sync"
+	"os"
+	"path/filepath"
 	"time"
 )
 
-type entry struct {
-	Price json.Number
-	time.Time
-}
+const (
+	NullPrice = json.Number("")
+)
 
-func New() interface {
-	UpdatePrice(string, json.Number) error
-	LastPrice(string) (json.Number, time.Time, error)
-} {
-	return &store{}
-}
-
-type store struct{ sync.Map }
-
-func (s *store) UpdatePrice(productId string, price json.Number) error {
-	s.Map.Store(productId, &entry{price, time.Now()})
-	return nil
-}
-
-func (s *store) LastPrice(productId string) (json.Number, time.Time, error) {
-	if ent, exists := s.Map.Load(productId); exists {
-		ent := ent.(*entry)
-		return ent.Price, ent.Time, nil
-	} else {
-		return json.Number(""), time.Time{}, nil
+func New(path string) priceModel { // TODO return error, plumb errors & context
+	err := os.MkdirAll(filepath.Join(path, ResultsSubdirectory), 0777)
+	if err != nil {
+		panic(err)
 	}
+	return newFromFS(osFS(path))
+}
+
+type entry struct {
+	Price json.Number `json:"newPrice"`
+	Time  time.Time   `json:"timestamp"` // TODO rename Timestamp
+}
+
+type record struct {
+	ProductId     string      `json:"productId"`
+	PreviousPrice json.Number `json:"previousPrice,omitempty"`
+	entry
+}
+
+type priceUpdater interface {
+	UpdatePrice(productId string, price json.Number) error
+}
+
+type priceReader interface {
+	HasPrice(string) bool
+	LastPrice(string) (json.Number, time.Time, error) // TODO(bikeshedding): (Entry, error) ?  (*Entry, error) to eliminate HasPrice?
+}
+
+type priceSetter interface {
+	SetPrice(productId string, price json.Number, timestamp time.Time) error
+}
+
+type priceSetterAtomic interface {
+	SetPriceIfMissing(productId string, price json.Number, timestamp time.Time) error
+}
+
+type recordWriter interface {
+	writeRecord(record *record /*TODO chan struct{} closed on sync */) error
+}
+
+type priceState interface {
+	priceReader
+	priceSetter
+	priceSetterAtomic
+}
+
+// price resource model, consumed by REST api
+type priceModel interface {
+	priceReader
+	priceUpdater
 }

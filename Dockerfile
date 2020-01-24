@@ -19,8 +19,6 @@ FROM scratch AS final
 
 COPY --from=build /main /main
 
-# run as unpriviliged user. 0xfe is used for `nobody` on debian, but this
-# container doesn't have /etc/passwd, so anything other than 0 would work
-USER 65534:65534
+WORKDIR /tmp/repricer
 EXPOSE 8080
 ENTRYPOINT ["/main"]

@@ -4,11 +4,17 @@ metadata:
   name: repricer 
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
         app: repricer 
     spec:
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
       containers:
         - name: repricer 
           image: repricer.azurecr.io/repricer
@@ -23,3 +29,10 @@ spec:
             httpGet:
               path: /healthz/ready
               port: 9102
+          volumeMounts:
+            - mountPath: "/tmp/repricer"
+              name: data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: repricer-data
