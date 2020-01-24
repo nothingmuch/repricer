@@ -9,6 +9,7 @@ import (
 type Model interface {
 	PriceUpdater
 	PriceReader
+	PriceLogRetriever
 
 	// TODO liveness/readyness checking interface
 }
@@ -24,6 +25,7 @@ func API(m Model) http.Handler {
 
 	apiMux.Handle("/api/reprice", Reprice(m))
 	apiMux.Handle("/api/product/", Product(m))
+	apiMux.Handle("/api/query", Query(m))
 
 	return apiMux
 }
