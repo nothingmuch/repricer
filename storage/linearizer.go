@@ -2,8 +2,9 @@ package storage
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
+
+	"github.com/nothingmuch/repricer/errors"
 )
 
 const WriteQueueLength = 50
@@ -351,6 +352,6 @@ func (l linearizedState) UpdatePrice(productId string, price json.Number) error 
 		return nil
 	default:
 		// TODO add a blocking writer for completeness?
-		return fmt.Errorf("write capacity exceeded") // TODO interface { Temporary() bool } for correct 503 vs. 500 code
+		return errors.Temporary("write capacity exceeded")
 	}
 }

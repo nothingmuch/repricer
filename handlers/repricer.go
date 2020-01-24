@@ -59,8 +59,15 @@ func (s reprice) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// write the new price data to storage.
 	err = s.UpdatePrice(body.ProductId, body.Price)
 	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		// TODO log err
+		code := http.StatusInternalServerError
+
+		if _, ok := err.(interface{ Temporary() bool }); ok {
+			code = http.StatusServiceUnavailable
+		}
+
+		// TODO log err, if code = 503, only warn
+
+		http.Error(w, http.StatusText(code), code)
 		return
 	}
 
